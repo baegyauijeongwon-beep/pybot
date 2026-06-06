@@ -16,7 +16,7 @@ load_dotenv()
 MASTODON_SERVER = "https://by-of-garden.xyz"
 # 🌟 직접 적는 대신, .env 파일에서 가져오기
 ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN") 
-JSON_FILE = "credentials.json" # 🌟 아까 만든 구글 인증서 파일 이름으로 변경
+JSON_FILE = "store-bot.json" # 🌟 아까 만든 구글 인증서 파일 이름으로 변경
 SHEET_URL = "https://docs.google.com/spreadsheets/d/14lLxj5C17ZGf3vH7M06fboKljfKQy8a_Rnsg0_A76Fk/edit" 
 # SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
