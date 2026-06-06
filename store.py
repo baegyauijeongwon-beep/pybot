@@ -3,17 +3,22 @@ import time
 import os
 import random
 import requests
-from mastodon import Mastodon
+from dotenv import load_dotenv # 🌟 추가: .env 파일 읽기용
+from mastodon import Mastodon, StreamListener # 🌟 추가: StreamListener
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
 
+# 🌟 금고(.env) 열기
+load_dotenv()
+
 # ================= [ ⚙️ 필수 설정 구역 ] =================
 MASTODON_SERVER = "https://by-of-garden.xyz"
-ACCESS_TOKEN = "UqTfZIPHm5ieF1lnQhT9e_MMz8suZZHOJR82kQFDgL8"
-JSON_FILE = "store-bot.json"
+# 🌟 직접 적는 대신, .env 파일에서 가져오기
+ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN") 
+JSON_FILE = "credentials.json" # 🌟 아까 만든 구글 인증서 파일 이름으로 변경
 SHEET_URL = "https://docs.google.com/spreadsheets/d/14lLxj5C17ZGf3vH7M06fboKljfKQy8a_Rnsg0_A76Fk/edit" 
-SINCE_ID_FILE = "since_id.txt"
+# SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
 # =======================================================
 
@@ -68,13 +73,6 @@ def process_mention(status):
             user_sheet.update_cell(empty_row_idx, 2, acct)
             user_sheet.update_cell(empty_row_idx, 4, INITIAL_MONEY)
             mastodon.status_post(status=f"@{acct} 상점 이용이 가능합니다.", in_reply_to_id=status['id'])
-            return
-
-        # 1. 정보 확인
-        if "[정보 확인]" in content:
-            if user_idx == -1: return
-            user_data = user_rows[user_idx-1]
-            mastodon.status_post(status=f"@{acct} 님의 보유 정보입니다.\n\n💰 보유 금액: {user_data[3]}갈레온\n🎒 소지품: {user_data[2]}", in_reply_to_id=status['id'])
             return
 
         # 2. 양도 기능
@@ -207,26 +205,23 @@ def process_mention(status):
     except Exception as e:
         print(f"오류: {e}")
 
-# ... (나머지 하단 코드는 그대로 유지)
-if __name__ == "__main__":
-    print("✨ 상점 봇 활성화 완료!")
-    since_id = None
-    if os.path.exists(SINCE_ID_FILE):
-        with open(SINCE_ID_FILE, "r") as f:
-            content = f.read().strip()
-            if content: since_id = int(content)
+# ================= [ 📡 실시간 스트리밍 리스너 클래스 ] =================
+class BotListener(StreamListener):
+    def on_notification(self, notification):
+        # 알림 타입이 '멘션(mention)'일 때만 캐치해서 process_mention으로 넘김
+        if notification['type'] == 'mention':
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 멘션 수신: {notification['account']['acct']}")
+            process_mention(notification['status'])
 
-    processed_ids = set()
-    while True:
-        try:
-            notifications = mastodon.notifications(types=['mention'], since_id=since_id, limit=10)
-            for notif in reversed(notifications):
-                if notif['id'] in processed_ids: continue
-                process_mention(notif['status'])
-                processed_ids.add(notif['id'])
-                since_id = notif['id']
-                with open(SINCE_ID_FILE, "w") as f: f.write(str(since_id))
-            time.sleep(5)
-        except Exception as e:
-            print(f"🔄 오류: {e}")
-            time.sleep(10)
+# ================= [ 🚀 봇 실행 구역 ] =================
+if __name__ == "__main__":
+    print("✨ 상점 봇(실시간 스트리밍 모드) 활성화 완료!")
+    
+    # 귀를 쫑긋 세우는 리스너 객체 생성
+    listener = BotListener()
+    
+    # 무한 대기하며 멘션이 오면 즉각 반응 (서버 부하 제로!)
+    try:
+        mastodon.stream_user(listener)
+    except Exception as e:
+        print(f"🚨 스트리밍 연결 오류: {e}")
