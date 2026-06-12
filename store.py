@@ -23,6 +23,8 @@ INITIAL_MONEY = 0
 # =======================================================
 
 mastodon = Mastodon(access_token=ACCESS_TOKEN, api_base_url=MASTODON_SERVER)
+acct = mastodon.account_verify_credentials()
+print("로그인 계정:", acct["acct"])
 
 def get_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
