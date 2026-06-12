@@ -14,17 +14,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 ACCESS_TOKEN = os.getenv("ROLL_BOT")
-BASE_URL = os.getenv("API_BASE_URL")
 
 
 # -----------------------------
 # BOT CLASS
 # -----------------------------
-class MastodonBot:
-    def __init__(self, base_url, access_token, poll_interval=5):
-        self.base_url = base_url
-        self.access_token = access_token
-        self.poll_interval = poll_interval
+def __init__(self, access_token, poll_interval=5):
+    self.base_url = "https://by-of-garden.xyz"
+    self.access_token = access_token
+    self.poll_interval = poll_interval
 
         self.headers = {
             "Authorization": f"Bearer {self.access_token}"
@@ -137,7 +135,6 @@ class MastodonBot:
 # -----------------------------
 if __name__ == "__main__":
     bot = MastodonBot(
-    base_url=BASE_URL,
     access_token=ACCESS_TOKEN,
     poll_interval=5
 )
