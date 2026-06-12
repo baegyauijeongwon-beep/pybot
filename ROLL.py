@@ -66,60 +66,60 @@ class MastodonBot:
 
             self.last_seen_id = n["id"]
 
-import re
-
-def on_notification(self, notification):
-    status = notification['status']
-    user = status['account']['acct']
-    status_id = status['id']
-
-    content = self.clean_text(status['content'])
-
-    reply_text = f"@{user} "
-
-    # -------------------------
-    # ONLY [COMMAND] MATCH
-    # -------------------------
-    match = re.search(r"\[(.*?)\]", content)
-
-    if not match:
-        return  # [] 없으면 완전 무시
-
-    command = match.group(1).strip().lower()
-
-    if command == "1d100":
-        reply_text += f"주사위 결과: {random.randint(1, 100)}"
-
-    elif command == "1d10":
-        reply_text += f"주사위 결과: {random.randint(1, 10)}"
-
-    elif command == "가위바위보":
-        reply_text += f"결과: {random.choice(['가위', '바위', '보'])}"
-
-    elif command == "yn":
-        reply_text += f"결과: {random.choice(['YES', 'NO'])}"
-
-    else:
-        return  # [] 안이어도 모르는 커맨드면 무시
-
-    self.reply(status_id, reply_text)
-    # -------------------------
-    # REPLY
-    # -------------------------
-    def reply(self, status_id, text):
-        url = f"{self.base_url}/api/v1/statuses"
-
-        data = {
-            "status": text,
-            "in_reply_to_id": status_id,
-            "visibility": "public"
-        }
-
-        res = requests.post(url, headers=self.headers, data=data)
-
-        if res.status_code != 200:
-            print("Reply failed:", res.text)
-
+    import re
+    
+    def on_notification(self, notification):
+        status = notification['status']
+        user = status['account']['acct']
+        status_id = status['id']
+    
+        content = self.clean_text(status['content'])
+    
+        reply_text = f"@{user} "
+    
+        # -------------------------
+        # ONLY [COMMAND] MATCH
+        # -------------------------
+        match = re.search(r"\[(.*?)\]", content)
+    
+        if not match:
+            return  # [] 없으면 완전 무시
+    
+        command = match.group(1).strip().lower()
+    
+        if command == "1d100":
+            reply_text += f"주사위 결과: {random.randint(1, 100)}"
+    
+        elif command == "1d10":
+            reply_text += f"주사위 결과: {random.randint(1, 10)}"
+    
+        elif command == "가위바위보":
+            reply_text += f"결과: {random.choice(['가위', '바위', '보'])}"
+    
+        elif command == "yn":
+            reply_text += f"결과: {random.choice(['YES', 'NO'])}"
+    
+        else:
+            return  # [] 안이어도 모르는 커맨드면 무시
+    
+        self.reply(status_id, reply_text)
+        # -------------------------
+        # REPLY
+        # -------------------------
+        def reply(self, status_id, text):
+            url = f"{self.base_url}/api/v1/statuses"
+    
+            data = {
+                "status": text,
+                "in_reply_to_id": status_id,
+                "visibility": "public"
+            }
+    
+            res = requests.post(url, headers=self.headers, data=data)
+    
+            if res.status_code != 200:
+                print("Reply failed:", res.text)
+    
 
 # -----------------------------
 # RUN
