@@ -53,6 +53,7 @@ def rebuild_inventory(inv_dict):
     return " ｜ ".join(parts)
 
 def process_mention(status):
+    print("process_mention 시작")
     content = clean_html(status['content'])
     acct = status['account']['acct']
     user_handle = acct if acct.startswith('@') else f"@{acct}"
@@ -208,9 +209,11 @@ def process_mention(status):
 # ================= [ 📡 실시간 스트리밍 리스너 클래스 ] =================
 class BotListener(StreamListener):
     def on_notification(self, notification):
-        # 알림 타입이 '멘션(mention)'일 때만 캐치해서 process_mention으로 넘김
+        print("===== 알림 도착 =====")
+        print(notification)
+
         if notification['type'] == 'mention':
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 멘션 수신: {notification['account']['acct']}")
+            print("===== 멘션 감지 =====")
             process_mention(notification['status'])
 
 # ================= [ 🚀 봇 실행 구역 ] =================
