@@ -223,10 +223,13 @@ if __name__ == "__main__":
     # 무한 대기하며 멘션이 오면 즉각 반응 (서버 부하 제로!)
     while True:
         try:
-            print("📡 스트리밍 연결 시도...")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 📡 스트리밍 연결")
             mastodon.stream_user(listener)
-
+    
+            print("⚠️ 스트리밍 종료됨")
+    
         except Exception as e:
             print(f"🚨 스트리밍 오류: {e}")
-            print("🔄 10초 후 재연결")
-            time.sleep(10)
+    
+        print("🔄 10초 후 재연결")
+        time.sleep(10)
