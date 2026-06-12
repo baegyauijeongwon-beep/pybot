@@ -28,7 +28,7 @@ def __init__(self, access_token, poll_interval=5):
             "Authorization": f"Bearer {self.access_token}"
         }
 
-        self.last_seen_id = None
+    self.last_seen_id = None
 
     # -------------------------
     # UTIL
