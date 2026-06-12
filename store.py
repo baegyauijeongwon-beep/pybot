@@ -17,7 +17,7 @@ MASTODON_SERVER = "https://by-of-garden.xyz"
 # 🌟 직접 적는 대신, .env 파일에서 가져오기
 ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN") 
 JSON_FILE = "store-bot.json" # 🌟 아까 만든 구글 인증서 파일 이름으로 변경
-SHEET_URL = "https://docs.google.com/spreadsheets/d/14lLxj5C17ZGf3vH7M06fboKljfKQy8a_Rnsg0_A76Fk/edit" 
+SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 # SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
 # =======================================================
@@ -120,14 +120,14 @@ def process_mention(status):
             
             # ① 0 이하의 금액 양도 방지
             if transfer_amount <= 0:
-                mastodon.status_post(status=f"@{acct} ⚠️ 양도할 금액은 1 갈레온 이상이어야 합니다.", in_reply_to_id=status['id'])
+                mastodon.status_post(status=f"@{acct} 양도할 금액은 1 갈레온 이상이어야 합니다.", in_reply_to_id=status['id'])
                 return
                 
             current_money = safe_int(user_rows[user_idx-1][3])
             
             # ② 내 잔고 확인
             if current_money < transfer_amount:
-                mastodon.status_post(status=f"@{acct} 💸 갈레온이 부족합니다. (현재 보유: {current_money:,} 갈레온)", in_reply_to_id=status['id'])
+                mastodon.status_post(status=f"@{acct} 갈레온이 부족합니다. (현재 보유: [{current_money:,}] 갈레온)", in_reply_to_id=status['id'])
                 return
                 
             # ③ 받을 사람(타겟)이 명단에 있는지 확인
@@ -145,7 +145,7 @@ def process_mention(status):
             
             # ⑥ 완료 영수증 툿 발송 (이름으로 출력!)
             mastodon.status_post(
-                status=f"@{acct}\n[ 💸 송금 완료 ]\n{target_name}님에게 {transfer_amount:,} 갈레온을 안전하게 보냈습니다.", 
+                status=f"@{acct}\n{target_name} 에게 [{transfer_amount:,}] 갈레온을 안전하게 보냈습니다.", 
                 in_reply_to_id=status['id']
             )
             return
