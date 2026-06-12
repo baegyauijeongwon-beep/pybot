@@ -95,13 +95,13 @@ class MastodonBot:
         command = match.group(1).strip().lower()
 
         if command == "1d100":
-            reply_text += f"주사위 결과: {random.randint(1, 100)}"
+            reply_text += f"1D100: {random.randint(1, 100)}"
         elif command == "1d10":
-            reply_text += f"주사위 결과: {random.randint(1, 10)}"
+            reply_text += f"1D10: {random.randint(1, 10)}"
         elif command == "가위바위보":
-            reply_text += f"결과: {random.choice(['가위','바위','보'])}"
+            reply_text += f"{random.choice(['가위','바위','보'])}"
         elif command == "yn":
-            reply_text += f"결과: {random.choice(['YES','NO'])}"
+            reply_text += f"{random.choice(['YES','NO'])}"
         else:
             return
 
