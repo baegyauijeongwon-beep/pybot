@@ -10,18 +10,25 @@ from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
 
 # 🌟 금고(.env) 열기
-load_dotenv()
+from dotenv import load_dotenv
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # ================= [ ⚙️ 필수 설정 구역 ] =================
 MASTODON_SERVER = "https://by-of-garden.xyz"
 # 🌟 직접 적는 대신, .env 파일에서 가져오기
 ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN") 
-JSON_FILE = "store-bot.json" # 🌟 아까 만든 구글 인증서 파일 이름으로 변경
+JSON_FILE = os.path.join(BASE_DIR, "store-bot.json")
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 # SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
 # =======================================================
 
+print("TOKEN 존재 여부:", ACCESS_TOKEN is not None)
+print("TOKEN 길이:", len(ACCESS_TOKEN) if ACCESS_TOKEN else 0)
 mastodon = Mastodon(access_token=ACCESS_TOKEN, api_base_url=MASTODON_SERVER)
 acct = mastodon.account_verify_credentials()
 print("로그인 계정:", acct["acct"])
