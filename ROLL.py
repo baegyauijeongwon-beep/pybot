@@ -20,7 +20,7 @@ ACCESS_TOKEN = os.getenv("ROLL_BOT")
 # -----------------------------
 class MastodonBot:
     def __init__(self, base_url, access_token, poll_interval=5):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = "https://by-of-garden.xyz"
         self.access_token = access_token
         self.poll_interval = poll_interval
 
