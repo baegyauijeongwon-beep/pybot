@@ -19,16 +19,17 @@ ACCESS_TOKEN = os.getenv("ROLL_BOT")
 # -----------------------------
 # BOT CLASS
 # -----------------------------
-def __init__(self, access_token, poll_interval=5):
-    self.base_url = "https://by-of-garden.xyz"
-    self.access_token = access_token
-    self.poll_interval = poll_interval
+class MastodonBot:
+    def __init__(self, access_token, poll_interval=5):
+        self.base_url = "https://by-of-garden.xyz"
+        self.access_token = access_token
+        self.poll_interval = poll_interval
 
-    self.headers = {
+        self.headers = {
             "Authorization": f"Bearer {self.access_token}"
         }
 
-    self.last_seen_id = None
+        self.last_seen_id = None
 
     # -------------------------
     # UTIL
@@ -84,10 +85,8 @@ def __init__(self, access_token, poll_interval=5):
         status_id = status["id"]
 
         content = self.clean_text(status["content"])
-
         reply_text = f"@{user} "
 
-        # ONLY [COMMAND] MATCH
         match = re.search(r"\[(.*?)\]", content)
 
         if not match:
@@ -97,16 +96,12 @@ def __init__(self, access_token, poll_interval=5):
 
         if command == "1d100":
             reply_text += f"주사위 결과: {random.randint(1, 100)}"
-
         elif command == "1d10":
             reply_text += f"주사위 결과: {random.randint(1, 10)}"
-
         elif command == "가위바위보":
-            reply_text += f"결과: {random.choice(['가위', '바위', '보'])}"
-
+            reply_text += f"결과: {random.choice(['가위','바위','보'])}"
         elif command == "yn":
-            reply_text += f"결과: {random.choice(['YES', 'NO'])}"
-
+            reply_text += f"결과: {random.choice(['YES','NO'])}"
         else:
             return
 
