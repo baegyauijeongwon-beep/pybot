@@ -42,6 +42,8 @@ class MastodonBot:
     # -------------------------
     def run(self):
         print("Bot started...")
+        self.load_last_id()
+        
         while True:
             try:
                 self.check_notifications()
@@ -56,25 +58,26 @@ class MastodonBot:
     def check_notifications(self):
         url = f"{self.base_url}/api/v1/notifications"
         res = requests.get(url, headers=self.headers, timeout=10)
-
+    
         try:
             notifications = res.json()
         except:
             print("API error:", res.text)
             return
-
+    
         latest_id = self.last_seen_id
-
+    
         for n in reversed(notifications):
             if self.last_seen_id and int(n["id"]) <= int(self.last_seen_id):
                 continue
-
+    
             if n["type"] == "mention":
                 self.on_notification(n)
-
+    
             latest_id = n["id"]
-
+    
         self.last_seen_id = latest_id
+        self.save_last_id()
 
     # -------------------------
     # HANDLER
@@ -123,6 +126,20 @@ class MastodonBot:
 
         if res.status_code != 200:
             print("Reply failed:", res.text)
+
+    def save_last_id(self):
+        with open("last_notification.txt", "w") as f:
+            f.write(str(self.last_seen_id))
+    
+    
+    def load_last_id(self):
+        try:
+            with open("last_notification.txt", "r") as f:
+                value = f.read().strip()
+                self.last_seen_id = value if value else None
+        except:
+            self.last_seen_id = None
+
 
 
 # -----------------------------
