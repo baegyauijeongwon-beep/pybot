@@ -221,7 +221,12 @@ if __name__ == "__main__":
     listener = BotListener()
     
     # 무한 대기하며 멘션이 오면 즉각 반응 (서버 부하 제로!)
-    try:
-        mastodon.stream_user(listener)
-    except Exception as e:
-        print(f"🚨 스트리밍 연결 오류: {e}")
+    while True:
+        try:
+            print("📡 스트리밍 연결 시도...")
+            mastodon.stream_user(listener)
+
+        except Exception as e:
+            print(f"🚨 스트리밍 오류: {e}")
+            print("🔄 10초 후 재연결")
+            time.sleep(10)
