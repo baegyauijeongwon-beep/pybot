@@ -24,7 +24,7 @@ def __init__(self, access_token, poll_interval=5):
     self.access_token = access_token
     self.poll_interval = poll_interval
 
-        self.headers = {
+    self.headers = {
             "Authorization": f"Bearer {self.access_token}"
         }
 
