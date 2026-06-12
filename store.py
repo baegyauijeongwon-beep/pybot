@@ -25,6 +25,7 @@ JSON_FILE = os.path.join(BASE_DIR, "store-bot.json")
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 # SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
+SINCE_ID_FILE = "last_notification.txt"
 # =======================================================
 
 print("TOKEN 존재 여부:", ACCESS_TOKEN is not None)
@@ -64,6 +65,16 @@ def parse_inventory(inv_string):
 def rebuild_inventory(inv_dict):
     parts = [f"{name}[{count}]" if count > 1 else name for name, count in inv_dict.items() if count > 0]
     return " ｜ ".join(parts)
+
+def load_since_id():
+    if os.path.exists(SINCE_ID_FILE):
+        with open(SINCE_ID_FILE, "r") as f:
+            return int(f.read().strip())
+    return None
+
+def save_since_id(notification_id):
+    with open(SINCE_ID_FILE, "w") as f:
+        f.write(str(notification_id))
 
 def process_mention(status):
     print("process_mention 시작")
@@ -219,33 +230,49 @@ def process_mention(status):
     except Exception as e:
         print(f"오류: {e}")
 
-# ================= [ 📡 실시간 스트리밍 리스너 클래스 ] =================
-class BotListener(StreamListener):
-    def on_notification(self, notification):
-        print("===== 알림 수신 =====")
-        print(notification)
-
-        if notification['type'] == 'mention':
-            print("===== 멘션 감지 =====")
-            process_mention(notification['status'])
-
-
 # ================= [ 🚀 봇 실행 구역 ] =================
-if __name__ == "__main__":
-    print("✨ 상점 봇(실시간 스트리밍 모드) 활성화 완료!")
 
-    listener = BotListener()
+if __name__ == "__main__":
+
+    print("✨ 상점 봇(폴링 모드) 활성화 완료!")
 
     while True:
+
         try:
-            notifications = mastodon.notifications(limit=5)
-    
-            print("알림 수:", len(notifications))
-    
-            for n in notifications:
-                print(n["type"])
-    
-            time.sleep(10)
-    
+
+            since_id = load_since_id()
+
+            notifications = mastodon.notifications(
+                since_id=since_id,
+                limit=20
+            )
+
+            if notifications:
+
+                notifications.reverse()
+
+                for notification in notifications:
+
+                    print(
+                        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+                        f"알림: {notification['type']}"
+                    )
+
+                    if notification["type"] == "mention":
+
+                        print(
+                            f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+                            f"멘션 수신: {notification['account']['acct']}"
+                        )
+
+                        process_mention(notification["status"])
+
+                    save_since_id(notification["id"])
+
+            time.sleep(5)
+
         except Exception as e:
-            print(e)
+
+            print("🚨 오류:", e)
+
+            time.sleep(10)
