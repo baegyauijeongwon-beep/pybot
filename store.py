@@ -222,30 +222,27 @@ def process_mention(status):
 # ================= [ 📡 실시간 스트리밍 리스너 클래스 ] =================
 class BotListener(StreamListener):
     def on_notification(self, notification):
-        print("===== 알림 도착 =====")
+        print("===== 알림 수신 =====")
         print(notification)
 
         if notification['type'] == 'mention':
             print("===== 멘션 감지 =====")
             process_mention(notification['status'])
 
+
 # ================= [ 🚀 봇 실행 구역 ] =================
-#if __name__ == "__main__":
+if __name__ == "__main__":
     print("✨ 상점 봇(실시간 스트리밍 모드) 활성화 완료!")
-    
-    # 귀를 쫑긋 세우는 리스너 객체 생성
+
     listener = BotListener()
-    
-    # 무한 대기하며 멘션이 오면 즉각 반응 (서버 부하 제로!)
+
     while True:
         try:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 📡 스트리밍 연결")
+
             mastodon.stream_user(listener)
-    
-            print("⚠️ 스트리밍 종료됨")
-    
+
         except Exception as e:
             print(f"🚨 스트리밍 오류: {e}")
-    
-        print("🔄 10초 후 재연결")
-        time.sleep(10)
+            print("🔄 10초 후 재연결")
+            time.sleep(10)
