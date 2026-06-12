@@ -32,6 +32,10 @@ print("TOKEN 길이:", len(ACCESS_TOKEN) if ACCESS_TOKEN else 0)
 mastodon = Mastodon(access_token=ACCESS_TOKEN, api_base_url=MASTODON_SERVER)
 acct = mastodon.account_verify_credentials()
 print("로그인 계정:", acct["acct"])
+notifications = mastodon.notifications(limit=5)
+
+for n in notifications:
+    print("알림 종류:", n["type"])
 
 def get_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -226,7 +230,7 @@ class BotListener(StreamListener):
             process_mention(notification['status'])
 
 # ================= [ 🚀 봇 실행 구역 ] =================
-if __name__ == "__main__":
+#if __name__ == "__main__":
     print("✨ 상점 봇(실시간 스트리밍 모드) 활성화 완료!")
     
     # 귀를 쫑긋 세우는 리스너 객체 생성
