@@ -14,6 +14,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 ACCESS_TOKEN = os.getenv("ROLL_BOT")
+BASE_URL = os.getenv("API_BASE_URL")
 
 
 # -----------------------------
@@ -136,9 +137,9 @@ class MastodonBot:
 # -----------------------------
 if __name__ == "__main__":
     bot = MastodonBot(
-        base_url="https://by-of-garden.xyz",
-        access_token=ACCESS_TOKEN,
-        poll_interval=5
-    )
+    base_url=BASE_URL,
+    access_token=ACCESS_TOKEN,
+    poll_interval=5
+)
 
     bot.run()
