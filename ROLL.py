@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # ENV LOAD
 # -----------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(os.path.dirname(BASE_DIR), ".env"))
+load_dotenv("/home/baegyauijeongwon/mastodon_bot/.env")
 
 ACCESS_TOKEN = os.getenv("ROLL_BOT")
 
