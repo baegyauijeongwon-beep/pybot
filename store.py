@@ -238,11 +238,14 @@ if __name__ == "__main__":
 
     while True:
         try:
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 📡 스트리밍 연결")
-
-            mastodon.stream_user(listener)
-
-        except Exception as e:
-            print(f"🚨 스트리밍 오류: {e}")
-            print("🔄 10초 후 재연결")
+            notifications = mastodon.notifications(limit=5)
+    
+            print("알림 수:", len(notifications))
+    
+            for n in notifications:
+                print(n["type"])
+    
             time.sleep(10)
+    
+        except Exception as e:
+            print(e)
