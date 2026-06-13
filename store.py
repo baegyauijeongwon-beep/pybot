@@ -91,7 +91,7 @@ def process_mention(status):
         # 0. 신규 유저 등록
         if "[신입생 등록]" in content:
             if user_idx != -1:
-                mastodon.status_post(status=f"@{acct} 이미 등록된 유저입니다.", in_reply_to_id=status['id'])
+                mastodon.status_post(status=f"@{acct} 이미 명단에 적혀 있습니다.", in_reply_to_id=status['id'])
                 return
             empty_row_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if not row[0].strip()), -1)
             if empty_row_idx == -1: return
@@ -118,7 +118,7 @@ def process_mention(status):
             # 타겟 유저 찾기 (아이디로 찾음)
             target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip() == target_handle), -1)
             if target_idx == -1:
-                mastodon.status_post(status=f"@{acct} {target_handle}님은 명단에 없는 유저입니다.", in_reply_to_id=status['id'])
+                mastodon.status_post(status=f"@{acct} {target_handle}님은 명단에 없습니다. 다시 확인해주세요.", in_reply_to_id=status['id'])
                 return
             
             # 🌟 [추가/수정] 타겟의 '이름(B열)' 가져오기 (user_rows의 인덱스는 0부터 시작하므로 target_idx-2)
@@ -171,7 +171,7 @@ def process_mention(status):
             
             # ⑥ 완료 영수증 툿 발송 (이름으로 출력!)
             mastodon.status_post(
-                status=f"@{acct}\n{target_name} 에게 [{transfer_amount:,}] 갈레온을 안전하게 보냈습니다.", 
+                status=f"@{acct}\n{target_name}에게 [{transfer_amount:,}] 갈레온을 보냈습니다.", 
                 in_reply_to_id=status['id']
             )
             return
