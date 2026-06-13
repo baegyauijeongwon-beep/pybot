@@ -3,12 +3,14 @@ import time
 import os
 import random
 import requests
+import logging
 from dotenv import load_dotenv
 from mastodon import Mastodon
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
 
+# ===================== 환경 =====================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
@@ -20,14 +22,28 @@ SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 INITIAL_MONEY = 0
 SINCE_ID_FILE = "store_last_notification.txt"
 
-print("TOKEN 존재 여부:", ACCESS_TOKEN is not None)
-print("TOKEN 길이:", len(ACCESS_TOKEN) if ACCESS_TOKEN else 0)
+# ===================== 로그 =====================
+LOG_FILE = os.path.join(BASE_DIR, "storebot_image.log")
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
-mastodon = Mastodon(access_token=ACCESS_TOKEN, api_base_url=MASTODON_SERVER)
+def log(msg):
+    print(msg)
+    logging.info(msg)
+
+# ===================== Mastodon =====================
+mastodon = Mastodon(
+    access_token=ACCESS_TOKEN,
+    api_base_url=MASTODON_SERVER
+)
+
 acct = mastodon.account_verify_credentials()
-print("로그인 계정:", acct["acct"])
+print("로그인:", acct["acct"])
 
-
+# ===================== Sheets =====================
 def get_sheets():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -38,57 +54,122 @@ def get_sheets():
     doc = client.open_by_url(SHEET_URL)
     return doc.worksheet("상점"), doc.worksheet("명단"), doc.worksheet("랜덤풀")
 
+# ===================== Utils =====================
+def clean_html(html):
+    return BeautifulSoup(html, "html.parser").get_text()
 
-def clean_html(html_content):
-    return BeautifulSoup(html_content, "html.parser").get_text()
-
-
-def safe_int(value):
-    if not value or str(value).strip() == "":
+def safe_int(v):
+    if not v or str(v).strip() == "":
         return 0
-    return int(str(value).replace(",", "").strip())
+    return int(str(v).replace(",", "").strip())
 
-
-def parse_inventory(inv_string):
-    if not inv_string or inv_string.strip() == "":
+def parse_inventory(s):
+    if not s:
         return {}
-    items = [i.strip() for i in inv_string.split("｜") if i.strip()]
-    inv_dict = {}
+    items = [i.strip() for i in s.split("｜") if i.strip()]
+    d = {}
     for item in items:
-        match = re.match(r"^(.+?)\[(\d+)\]$", item)
-        if match:
-            inv_dict[match.group(1).strip()] = int(match.group(2))
+        m = re.match(r"^(.+?)\[(\d+)\]$", item)
+        if m:
+            d[m.group(1).strip()] = int(m.group(2))
         else:
-            inv_dict[item] = 1
-    return inv_dict
+            d[item] = 1
+    return d
 
-
-def rebuild_inventory(inv_dict):
+def rebuild_inventory(d):
     return " ｜ ".join(
-        [f"{k}[{v}]" if v > 1 else k for k, v in inv_dict.items() if v > 0]
+        f"{k}[{v}]" if v > 1 else k
+        for k, v in d.items() if v > 0
     )
-
 
 def load_since_id():
     if os.path.exists(SINCE_ID_FILE):
-        with open(SINCE_ID_FILE, "r") as f:
+        with open(SINCE_ID_FILE) as f:
             return int(f.read().strip())
     return None
 
-
-def save_since_id(notification_id):
+def save_since_id(i):
     with open(SINCE_ID_FILE, "w") as f:
-        f.write(str(notification_id))
+        f.write(str(i))
 
+# ===================== IMAGE SYSTEM =====================
+
+def download_image(url):
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200 and r.content:
+            return r.content
+    except Exception as e:
+        log(f"다운로드 실패: {url} | {e}")
+    return None
+
+
+def upload_media_with_retry(path, retry=3):
+    for i in range(retry):
+        try:
+            uploaded = mastodon.media_post(path)
+            media_id = uploaded.get("id")
+
+            if not media_id:
+                raise Exception(f"no media id: {uploaded}")
+
+            # processing wait
+            for _ in range(10):
+                m = mastodon.media(media_id)
+                if m.get("url"):
+                    return media_id
+                time.sleep(1)
+
+            log(f"processing timeout: {media_id}")
+
+        except Exception as e:
+            log(f"업로드 실패 retry {i+1}: {e}")
+            time.sleep(2)
+
+    return None
+
+
+def process_images(drawn_urls):
+    media_ids = []
+
+    for url in drawn_urls:
+        log(f"이미지 처리: {url}")
+
+        img = download_image(url)
+        if not img:
+            log("다운로드 실패 skip")
+            continue
+
+        filename = f"/tmp/storebot_{random.randint(1000,9999)}.png"
+
+        try:
+            with open(filename, "wb") as f:
+                f.write(img)
+
+            media_id = upload_media_with_retry(filename)
+
+            if media_id:
+                media_ids.append(media_id)
+                log(f"업로드 성공: {media_id}")
+            else:
+                log("업로드 최종 실패")
+
+        finally:
+            if os.path.exists(filename):
+                os.remove(filename)
+
+    return media_ids
+
+# ===================== MAIN =====================
 
 def process_mention(status):
-    print("process_mention 시작")
-
-    content = clean_html(status["content"])
-    acct = status["account"]["acct"]
-    user_handle = acct if acct.startswith("@") else f"@{acct}"
-
     try:
+        print("process_mention 시작")
+
+        content = clean_html(status["content"])
+        acct = status["account"]["acct"]
+        user_handle = acct if acct.startswith("@") else f"@{acct}"
+
         shop_sheet, user_sheet, random_sheet = get_sheets()
         user_rows = user_sheet.get_all_values()
 
@@ -98,144 +179,76 @@ def process_mention(status):
             -1
         )
 
-        # =====================
-        # 0. 신규 유저
-        # =====================
-        if "[신입생 등록]" in content:
-            if user_idx != -1:
-                mastodon.status_post(
-                    status=f"@{acct} 이미 명단에 있습니다.",
-                    in_reply_to_id=status["id"]
-                )
-                return
-
-            empty_row_idx = next(
-                (i + 2 for i, row in enumerate(user_rows[1:]) if not row[0].strip()),
-                -1
-            )
-            if empty_row_idx == -1:
-                return
-
-            user_sheet.update_cell(empty_row_idx, 1, user_handle)
-            user_sheet.update_cell(empty_row_idx, 2, status["account"]["display_name"])
-            user_sheet.update_cell(empty_row_idx, 4, INITIAL_MONEY)
-
-            mastodon.status_post(
-                status=f"@{acct} 상점 이용 가능",
-                in_reply_to_id=status["id"]
-            )
-            return
-
-        # =====================
-        # 2. 구매
-        # =====================
+        # ===== 구매 =====
         match_buy = re.search(r"\[구매\/(.+?)(?:\/(\d+))?\]", content)
-        if match_buy and user_idx != -1:
+        if match_buy:
+            if user_idx == -1:
+                return
 
             item_name = match_buy.group(1).strip()
             req_qty = int(match_buy.group(2)) if match_buy.group(2) else 1
 
             shop_rows = shop_sheet.get_all_values()
+
             prod_idx, prod_data = next(
                 ((i + 2, row) for i, row in enumerate(shop_rows[1:])
                  if row[0].strip() == item_name),
                 (-1, None)
             )
 
-            if not prod_data or prod_data[6].strip().upper() == "FALSE":
+            if not prod_data:
                 return
 
             total_price = safe_int(prod_data[2]) * req_qty
-            total_give_qty = (safe_int(prod_data[3]) or 1) * req_qty
             current_money = safe_int(user_rows[user_idx - 1][3])
 
             if current_money < total_price:
                 return
 
-            inv_dict = parse_inventory(user_rows[user_idx - 1][2])
+            inv = parse_inventory(user_rows[user_idx - 1][2])
             description = prod_data[1]
 
-            result_display = ""
             drawn_urls = []
             media_ids = []
 
+            # 랜덤 여부
             is_random = len(prod_data) > 7 and prod_data[7].strip() == "랜덤"
 
             if is_random:
                 pool = [
-                    {"name": r[1], "url": r[2] if len(r) > 2 else ""}
+                    {"name": r[1], "url": r[2]}
                     for r in random_sheet.get_all_values()[1:]
                     if r[0].strip() == item_name
                 ]
 
-                drawn = [random.choice(pool) for _ in range(total_give_qty)]
-                names = [d["name"] for d in drawn]
-
-                for n in names:
-                    inv_dict[n] = inv_dict.get(n, 0) + 1
-
-                result_display = ", ".join(names)
-                description = description.replace("{결과}", result_display)
-                drawn_urls = [d["url"] for d in drawn if d["url"].startswith("http")]
-
+                drawn_items = random.choices(pool, k=req_qty)
+                for it in drawn_items:
+                    if it["url"].startswith("http"):
+                        drawn_urls.append(it["url"])
             else:
-                inv_dict[item_name] = inv_dict.get(item_name, 0) + total_give_qty
-                result_display = item_name
+                inv[item_name] = inv.get(item_name, 0) + req_qty
 
-            user_sheet.update_cell(user_idx, 3, rebuild_inventory(inv_dict))
+            # 인벤 업데이트
+            user_sheet.update_cell(user_idx, 3, rebuild_inventory(inv))
             user_sheet.update_cell(user_idx, 4, current_money - total_price)
-            shop_sheet.update_cell(prod_idx, 6, safe_int(prod_data[5]) + req_qty)
 
-            # =====================
-            # 🔥 이미지 안정 업로드
-            # =====================
-            for url in drawn_urls:
-                try:
-                    print("IMG:", url)
+            # ===== 이미지 안정 처리 =====
+            media_ids = process_images(drawn_urls)
 
-                    res = requests.get(url, timeout=10)
-                    if res.status_code != 200:
-                        continue
-
-                    import uuid
-                    filename = f"/tmp/{uuid.uuid4().hex}.png"
-
-                    with open(filename, "wb") as f:
-                        f.write(res.content)
-
-                    uploaded = mastodon.media_post(filename)
-                    media_id = uploaded["id"]
-
-                    # processing wait
-                    for _ in range(15):
-                        m = mastodon.media(media_id)
-                        if m.get("url"):
-                            break
-                        time.sleep(1)
-
-                    media_ids.append(media_id)
-
-                    os.remove(filename)
-
-                except Exception as e:
-                    print("IMG ERROR:", e)
-
+            # ===== 최종 툿 =====
             mastodon.status_post(
-                status=f"@{acct}\n구매 완료\n\n[{description}]\n[{result_display}]",
+                status=f"@{acct}\n구매 완료",
                 in_reply_to_id=status["id"],
-                media_ids=media_ids if len(media_ids) > 0 else None
+                media_ids=media_ids if media_ids else None
             )
 
     except Exception as e:
-        print("ERROR:", e)
+        log(f"ERROR: {e}")
 
+# ===================== LOOP =====================
 
-# =====================
-# LOOP
-# =====================
 if __name__ == "__main__":
-
-    print("BOT START")
+    print("봇 시작")
 
     while True:
         try:
@@ -246,18 +259,17 @@ if __name__ == "__main__":
                 limit=20
             )
 
-            notifications.reverse()
+            if notifications:
+                notifications.reverse()
 
-            for n in notifications:
-                print("NOTI:", n["type"])
+                for n in notifications:
+                    if n["type"] == "mention":
+                        process_mention(n["status"])
 
-                if n["type"] == "mention":
-                    process_mention(n["status"])
-
-                save_since_id(n["id"])
+                    save_since_id(n["id"])
 
             time.sleep(5)
 
         except Exception as e:
-            print("LOOP ERROR:", e)
+            log(f"LOOP ERROR: {e}")
             time.sleep(10)
