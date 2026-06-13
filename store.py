@@ -86,7 +86,7 @@ def process_mention(status):
     try:
         shop_sheet, user_sheet, random_sheet = get_sheets() 
         user_rows = user_sheet.get_all_values()
-        user_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip() == user_handle), -1)
+        user_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == user_handle.lower()), -1)
 
         # 0. 신규 유저 등록
         if "[신입생 등록]" in content:
@@ -116,7 +116,7 @@ def process_mention(status):
                 return
             
             # 타겟 유저 찾기 (아이디로 찾음)
-            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip() == target_handle), -1)
+            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == target_handle.lower()), -1)
             if target_idx == -1:
                 mastodon.status_post(status=f"@{acct} {target_handle}님은 명단에 없습니다. 다시 확인해주세요.", in_reply_to_id=status['id'])
                 return
@@ -157,7 +157,7 @@ def process_mention(status):
                 return
                 
             # ③ 받을 사람(타겟)이 명단에 있는지 확인
-            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip() == target_handle), -1)
+            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == target_handle.lower()), -1)
             if target_idx == -1:
                 return
                 
