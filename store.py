@@ -3,255 +3,254 @@ import time
 import os
 import random
 import requests
-import logging
-from dotenv import load_dotenv
-from mastodon import Mastodon
+from dotenv import load_dotenv # 🌟 추가: .env 파일 읽기용
+from mastodon import Mastodon, StreamListener # 🌟 추가: StreamListener
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
 
-# ===================== 환경 =====================
+# 🌟 금고(.env) 열기
+from dotenv import load_dotenv
+import os
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
+# ================= [ ⚙️ 필수 설정 구역 ] =================
 MASTODON_SERVER = "https://by-of-garden.xyz"
-ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN")
+# 🌟 직접 적는 대신, .env 파일에서 가져오기
+ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN") 
 JSON_FILE = os.path.join(BASE_DIR, "store-bot.json")
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
-
-INITIAL_MONEY = 0
+# SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
+INITIAL_MONEY = 0 
 SINCE_ID_FILE = "store_last_notification.txt"
+# =======================================================
 
-# ===================== 로그 =====================
-LOG_FILE = os.path.join(BASE_DIR, "storebot_image.log")
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-
-def log(msg):
-    print(msg)
-    logging.info(msg)
-
-# ===================== Mastodon =====================
-mastodon = Mastodon(
-    access_token=ACCESS_TOKEN,
-    api_base_url=MASTODON_SERVER
-)
-
+print("TOKEN 존재 여부:", ACCESS_TOKEN is not None)
+print("TOKEN 길이:", len(ACCESS_TOKEN) if ACCESS_TOKEN else 0)
+mastodon = Mastodon(access_token=ACCESS_TOKEN, api_base_url=MASTODON_SERVER)
 acct = mastodon.account_verify_credentials()
-print("로그인:", acct["acct"])
+print("로그인 계정:", acct["acct"])
+notifications = mastodon.notifications(limit=5)
 
-# ===================== Sheets =====================
+for n in notifications:
+    print("알림 종류:", n["type"])
+
 def get_sheets():
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_FILE, scope)
     client = gspread.authorize(creds)
     doc = client.open_by_url(SHEET_URL)
     return doc.worksheet("상점"), doc.worksheet("명단"), doc.worksheet("랜덤풀")
 
-# ===================== Utils =====================
-def clean_html(html):
-    return BeautifulSoup(html, "html.parser").get_text()
+def clean_html(html_content):
+    return BeautifulSoup(html_content, "html.parser").get_text()
 
-def safe_int(v):
-    if not v or str(v).strip() == "":
-        return 0
-    return int(str(v).replace(",", "").strip())
+def safe_int(value):
+    if not value or str(value).strip() == "": return 0
+    return int(str(value).replace(",", "").strip())
 
-def parse_inventory(s):
-    if not s:
-        return {}
-    items = [i.strip() for i in s.split("｜") if i.strip()]
-    d = {}
+def parse_inventory(inv_string):
+    if not inv_string or inv_string.strip() == "": return {}
+    items = [i.strip() for i in inv_string.split("｜") if i.strip()]
+    inv_dict = {}
     for item in items:
-        m = re.match(r"^(.+?)\[(\d+)\]$", item)
-        if m:
-            d[m.group(1).strip()] = int(m.group(2))
-        else:
-            d[item] = 1
-    return d
+        match = re.match(r"^(.+?)\[(\d+)\]$", item)
+        if match: inv_dict[match.group(1).strip()] = int(match.group(2))
+        else: inv_dict[item] = 1
+    return inv_dict
 
-def rebuild_inventory(d):
-    return " ｜ ".join(
-        f"{k}[{v}]" if v > 1 else k
-        for k, v in d.items() if v > 0
-    )
+def rebuild_inventory(inv_dict):
+    parts = [f"{name}[{count}]" if count > 1 else name for name, count in inv_dict.items() if count > 0]
+    return " ｜ ".join(parts)
 
 def load_since_id():
     if os.path.exists(SINCE_ID_FILE):
-        with open(SINCE_ID_FILE) as f:
+        with open(SINCE_ID_FILE, "r") as f:
             return int(f.read().strip())
     return None
 
-def save_since_id(i):
+def save_since_id(notification_id):
     with open(SINCE_ID_FILE, "w") as f:
-        f.write(str(i))
-
-# ===================== IMAGE SYSTEM =====================
-
-def download_image(url):
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200 and r.content:
-            return r.content
-    except Exception as e:
-        log(f"다운로드 실패: {url} | {e}")
-    return None
-
-
-def upload_media_with_retry(path, retry=3):
-    for i in range(retry):
-        try:
-            uploaded = mastodon.media_post(path)
-            media_id = uploaded.get("id")
-
-            if not media_id:
-                raise Exception(f"no media id: {uploaded}")
-
-            # processing wait
-            for _ in range(10):
-                m = mastodon.media(media_id)
-                if m.get("url"):
-                    return media_id
-                time.sleep(1)
-
-            log(f"processing timeout: {media_id}")
-
-        except Exception as e:
-            log(f"업로드 실패 retry {i+1}: {e}")
-            time.sleep(2)
-
-    return None
-
-
-def process_images(drawn_urls):
-    media_ids = []
-
-    for url in drawn_urls:
-        log(f"이미지 처리: {url}")
-
-        img = download_image(url)
-        if not img:
-            log("다운로드 실패 skip")
-            continue
-
-        filename = f"/tmp/storebot_{random.randint(1000,9999)}.png"
-
-        try:
-            with open(filename, "wb") as f:
-                f.write(img)
-
-            media_id = upload_media_with_retry(filename)
-
-            if media_id:
-                media_ids.append(media_id)
-                log(f"업로드 성공: {media_id}")
-            else:
-                log("업로드 최종 실패")
-
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
-
-    return media_ids
-
-# ===================== MAIN =====================
+        f.write(str(notification_id))
 
 def process_mention(status):
+    print("process_mention 시작")
+    content = clean_html(status['content'])
+    acct = status['account']['acct']
+    display_name = status['account']['display_name']
+    user_handle = acct if acct.startswith('@') else f"@{acct}"
+    
     try:
-        print("process_mention 시작")
-
-        content = clean_html(status["content"])
-        acct = status["account"]["acct"]
-        user_handle = acct if acct.startswith("@") else f"@{acct}"
-
-        shop_sheet, user_sheet, random_sheet = get_sheets()
+        shop_sheet, user_sheet, random_sheet = get_sheets() 
         user_rows = user_sheet.get_all_values()
+        user_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == user_handle.lower()), -1)
 
-        user_idx = next(
-            (i + 2 for i, row in enumerate(user_rows[1:])
-             if row[0].strip().lower() == user_handle.lower()),
-            -1
-        )
+        # 0. 신규 유저 등록
+        if "[신입생 등록]" in content:
+            if user_idx != -1:
+                mastodon.status_post(status=f"@{acct} 이미 명단에 적혀 있습니다.", in_reply_to_id=status['id'])
+                return
+            empty_row_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if not row[0].strip()), -1)
+            if empty_row_idx == -1: return
+            user_sheet.update_cell(empty_row_idx, 1, user_handle)
+            user_sheet.update_cell(empty_row_idx, 2, display_name)
+            user_sheet.update_cell(empty_row_idx, 4, INITIAL_MONEY)
+            mastodon.status_post(status=f"@{acct} 상점 이용이 가능합니다.", in_reply_to_id=status['id'])
+            return
 
-        # ===== 구매 =====
+        # 2. 양도 기능
+        match_trade = re.search(r"\[양도/(.+?)/(\d+)/(@.+?)\]", content)
+        if match_trade:
+            if user_idx == -1: return
+            item_name = match_trade.group(1).strip()
+            trade_count = int(match_trade.group(2))
+            target_handle = match_trade.group(3).strip()
+            
+            # 내 인벤토리 확인
+            inv_dict = parse_inventory(user_rows[user_idx-1][2])
+            if inv_dict.get(item_name, 0) < trade_count:
+                mastodon.status_post(status=f"@{acct} 해당 상품을 {trade_count}개만큼 가지고 있지 않습니다.", in_reply_to_id=status['id'])
+                return
+            
+            # 타겟 유저 찾기 (아이디로 찾음)
+            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == target_handle.lower()), -1)
+            if target_idx == -1:
+                mastodon.status_post(status=f"@{acct} {target_handle}님은 명단에 없습니다. 다시 확인해주세요.", in_reply_to_id=status['id'])
+                return
+            
+            # 🌟 [추가/수정] 타겟의 '이름(B열)' 가져오기 (user_rows의 인덱스는 0부터 시작하므로 target_idx-2)
+            target_name = user_rows[target_idx-1][1] 
+            
+            # 인벤토리 데이터 갱신
+            inv_dict[item_name] -= trade_count
+            user_sheet.update_cell(user_idx, 3, rebuild_inventory(inv_dict))
+            
+            target_inv_dict = parse_inventory(user_rows[target_idx-1][2])
+            target_inv_dict[item_name] = target_inv_dict.get(item_name, 0) + trade_count
+            user_sheet.update_cell(target_idx, 3, rebuild_inventory(target_inv_dict))
+            
+            # 🌟 툿 출력도 '이름'으로 변경!
+            mastodon.status_post(status=f"@{acct} {target_handle}\n\n{target_name}에게 [{item_name} {trade_count}개] 양도 완료", in_reply_to_id=status['id'])
+            return
+        # 2-2. 갈레온(재화) 양도 기능
+        # 커맨드 형식: [갈레온 양도/금액/@아이디]
+        match_money_trade = re.search(r"\[갈레온\s*양도/(\d+)/(@.+?)\]", content)
+        if match_money_trade:
+            if user_idx == -1: return
+            
+            transfer_amount = int(match_money_trade.group(1))
+            target_handle = match_trade_target = match_money_trade.group(2).strip()
+            
+            # ① 0 이하의 금액 양도 방지
+            if transfer_amount <= 0:
+                mastodon.status_post(status=f"@{acct} 양도할 금액은 1 갈레온 이상이어야 합니다.", in_reply_to_id=status['id'])
+                return
+                
+            current_money = safe_int(user_rows[user_idx-1][3])
+            
+            # ② 내 잔고 확인
+            if current_money < transfer_amount:
+                mastodon.status_post(status=f"@{acct} 갈레온이 부족합니다. (현재 보유: [{current_money:,}] 갈레온)", in_reply_to_id=status['id'])
+                return
+                
+            # ③ 받을 사람(타겟)이 명단에 있는지 확인
+            target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == target_handle.lower()), -1)
+            if target_idx == -1:
+                return
+                
+            # ④ 받는 사람의 이름(B열)과 현재 돈 가져오기
+            target_name = user_rows[target_idx-1][1]
+            target_current_money = safe_int(user_rows[target_idx-1][3])
+            
+            # ⑤ 구글 시트에 업데이트 (내 돈 -, 상대 돈 +)
+            user_sheet.update_cell(user_idx, 4, current_money - transfer_amount)
+            user_sheet.update_cell(target_idx, 4, target_current_money + transfer_amount)
+            
+            # ⑥ 완료 영수증 툿 발송 (이름으로 출력!)
+            mastodon.status_post(
+                status=f"@{acct}\n{target_name}에게 [{transfer_amount:,}] 갈레온을 보냈습니다.", 
+                in_reply_to_id=status['id']
+            )
+            return
+
+        # 3. 구매 기능
         match_buy = re.search(r"\[구매\/(.+?)(?:\/(\d+))?\]", content)
         if match_buy:
-            if user_idx == -1:
-                return
-
-            item_name = match_buy.group(1).strip()
-            req_qty = int(match_buy.group(2)) if match_buy.group(2) else 1
-
+            if user_idx == -1: return
+            item_name, req_qty = match_buy.group(1).strip(), int(match_buy.group(2)) if match_buy.group(2) else 1
+            
             shop_rows = shop_sheet.get_all_values()
-
-            prod_idx, prod_data = next(
-                ((i + 2, row) for i, row in enumerate(shop_rows[1:])
-                 if row[0].strip() == item_name),
-                (-1, None)
-            )
-
-            if not prod_data:
-                return
+            prod_idx, prod_data = next(((i+2, row) for i, row in enumerate(shop_rows[1:]) if row[0].strip() == item_name), (-1, None))
+            
+            if not prod_data or prod_data[6].strip().upper() == "FALSE": return
 
             total_price = safe_int(prod_data[2]) * req_qty
-            current_money = safe_int(user_rows[user_idx - 1][3])
-
-            if current_money < total_price:
-                return
-
-            inv = parse_inventory(user_rows[user_idx - 1][2])
-            description = prod_data[1]
-
-            drawn_urls = []
-            media_ids = []
-
-            # 랜덤 여부
+            total_give_qty = (safe_int(prod_data[3]) if prod_data[3].strip() else 1) * req_qty
+            current_money = safe_int(user_rows[user_idx-1][3])
+            
+            if current_money < total_price: return
+            
             is_random = len(prod_data) > 7 and prod_data[7].strip() == "랜덤"
+            inv_dict = parse_inventory(user_rows[user_idx-1][2])
+            description = prod_data[1]
+            result_display, drawn_urls, media_ids = "", [], []
 
             if is_random:
-                pool = [
-                    {"name": r[1], "url": r[2]}
-                    for r in random_sheet.get_all_values()[1:]
-                    if r[0].strip() == item_name
-                ]
-
-                drawn_items = random.choices(pool, k=req_qty)
-                for it in drawn_items:
-                    if it["url"].startswith("http"):
-                        drawn_urls.append(it["url"])
+                pool = [{"name": r[1].strip(), "url": r[2].strip() if len(r)>2 else ""} for r in random_sheet.get_all_values()[1:] if r[0].strip() == item_name]
+                if not pool: return
+                drawn_items = [random.choice(pool) for _ in range(total_give_qty)]
+                drawn_names = [i["name"] for i in drawn_items]
+                for name in drawn_names: inv_dict[name] = inv_dict.get(name, 0) + 1
+                result_display = ", ".join(drawn_names)
+                description = description.replace("{결과}", result_display)
+                drawn_urls = [i["url"] for i in drawn_items if i["url"].startswith("http")]
             else:
-                inv[item_name] = inv.get(item_name, 0) + req_qty
+                inv_dict[item_name] = inv_dict.get(item_name, 0) + total_give_qty
+                result_display = item_name
 
-            # 인벤 업데이트
-            user_sheet.update_cell(user_idx, 3, rebuild_inventory(inv))
+            user_sheet.update_cell(user_idx, 3, rebuild_inventory(inv_dict))
             user_sheet.update_cell(user_idx, 4, current_money - total_price)
+            shop_sheet.update_cell(prod_idx, 6, safe_int(prod_data[5]) + req_qty)
 
-            # ===== 이미지 안정 처리 =====
-            media_ids = process_images(drawn_urls)
+            for url in drawn_urls:
+                try:
+                    res = requests.get(url)
+                    if res.status_code == 200:
+                        import uuid
+                        filename = f"temp_{uuid.uuid4().hex}.png"
+                        with open(filename, "wb") as f:
+                            f.write(res.content)
 
-            # ===== 최종 툿 =====
+                        uploaded = mastodon.media_post(filename, synchronous=True)
+                        
+                        media_ids.append(uploaded['id'])
+            
+                        os.remove(filename)
+            
+                except Exception as e:
+                    print("이미지 업로드 실패:", e)
+
             mastodon.status_post(
-                status=f"@{acct}\n구매 완료",
-                in_reply_to_id=status["id"],
-                media_ids=media_ids if media_ids else None
+                status=f"@{acct}\n⟡ '{item_name}' {req_qty}개를 구매했습니다. ⟡\n\n[ {description} ]\n[ {result_display} ] 소지품에 들어갔습니다. \n\n[ 금액: {total_price:,} G ｜ 잔액: {current_money - total_price:,} G ]",
+                in_reply_to_id=status['id'], media_ids=media_ids if media_ids else None
             )
 
     except Exception as e:
-        log(f"ERROR: {e}")
+        print(f"오류: {e}")
 
-# ===================== LOOP =====================
+# ================= [ 🚀 봇 실행 구역 ] =================
 
 if __name__ == "__main__":
-    print("봇 시작")
+
+    print("✨ 상점 봇(폴링 모드) 활성화 완료!")
 
     while True:
+
         try:
+
             since_id = load_since_id()
 
             notifications = mastodon.notifications(
@@ -260,16 +259,31 @@ if __name__ == "__main__":
             )
 
             if notifications:
+
                 notifications.reverse()
 
-                for n in notifications:
-                    if n["type"] == "mention":
-                        process_mention(n["status"])
+                for notification in notifications:
 
-                    save_since_id(n["id"])
+                    print(
+                        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+                        f"알림: {notification['type']}"
+                    )
+
+                    if notification["type"] == "mention":
+
+                        print(
+                            f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+                            f"멘션 수신: {notification['account']['acct']}"
+                        )
+
+                        process_mention(notification["status"])
+
+                    save_since_id(notification["id"])
 
             time.sleep(5)
 
         except Exception as e:
-            log(f"LOOP ERROR: {e}")
+
+            print("🚨 오류:", e)
+
             time.sleep(10)
