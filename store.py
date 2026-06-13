@@ -219,8 +219,16 @@ def process_mention(status):
                 try:
                     res = requests.get(url)
                     if res.status_code == 200:
-                        with open("temp.png", "wb") as f: f.write(res.content)
-                        media_ids.append(mastodon.media_post("temp.png")['id'])
+                        import uuid
+                        filename = f"temp_{uuid.uuid4().hex}.png"
+                        with open(filename, "wb") as f:
+                            f.write(res.content)
+            
+                        uploaded = mastodon.media_post(filename)
+                        media_ids.append(uploaded['id'])
+            
+                        os.remove(filename)
+            
                 except Exception as e:
                     print("이미지 업로드 실패:", e)
 
