@@ -223,6 +223,9 @@ def process_mention(status):
                         filename = f"/tmp/{uuid.uuid4().hex}.png"
 
                         uploaded = mastodon.media_post(filename)
+                        
+                        print("URL:", url)
+                        print("파일 존재 여부:", os.path.exists(filename))
 
                         media_id = uploaded["id"]
                         
