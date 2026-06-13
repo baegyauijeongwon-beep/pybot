@@ -9,6 +9,9 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from bs4 import BeautifulSoup
 
+import io
+
+
 # 🌟 금고(.env) 열기
 from dotenv import load_dotenv
 import os
@@ -218,34 +221,27 @@ def process_mention(status):
             for url in drawn_urls:
                 try:
                     res = requests.get(url)
-
+            
                     content_type = res.headers.get("Content-Type", "")
-                    
+            
                     if "image" not in content_type:
                         print("❌ 이미지 아님:", content_type)
                         continue
-                    
-                    with open(filename, "wb") as f:
-                        f.write(res.content)
-                    
-                    uploaded = mastodon.media_post(filename)
-
-                    media_id = uploaded["id"]
-                    
-                    # ⛔ 이게 핵심
-                    for _ in range(20):
-                        m = mastodon.media(media_id)
-                        if m.get("url") or m.get("preview_url"):
-                            break
-                        time.sleep(1)
-                    
-                    media_ids.append(uploaded['id'])
-        
-                    os.remove(filename)
+            
+                    file_obj = io.BytesIO(res.content)
+            
+                    uploaded = mastodon.media_post(
+                        file_obj,
+                        mime_type=content_type
+                    )
+            
+                    media_ids.append(uploaded["id"])
+            
+                    print("✅ 업로드 성공:", uploaded["id"])
             
                 except Exception as e:
-                    print("이미지 업로드 실패:", e)
-
+                    print("🚨 이미지 업로드 실패:", e)
+        
             mastodon.status_post(
                 status=f"@{acct}\n⟡ '{item_name}' {req_qty}개를 구매했습니다. ⟡\n\n[ {description} ]\n[ {result_display} ] 소지품에 들어갔습니다. \n\n[ 금액: {total_price:,} G ｜ 잔액: {current_money - total_price:,} G ]",
                 in_reply_to_id=status['id'], media_ids=media_ids if media_ids else None
