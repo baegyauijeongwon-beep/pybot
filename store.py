@@ -225,6 +225,8 @@ def process_mention(status):
                             f.write(res.content)
             
                         uploaded = mastodon.media_post(filename, synchronous=True)
+                        
+                        media_ids.append(uploaded['id'])
             
                         os.remove(filename)
             
