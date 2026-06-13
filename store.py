@@ -222,7 +222,16 @@ def process_mention(status):
                         import uuid
                         filename = f"/tmp/{uuid.uuid4().hex}.png"
 
-                        uploaded = mastodon.media_post(filename, synchronous=True)
+                        uploaded = mastodon.media_post(filename)
+
+                        media_id = uploaded["id"]
+                        
+                        # ⛔ 이게 핵심
+                        for _ in range(20):
+                            m = mastodon.media(media_id)
+                            if m.get("url") or m.get("preview_url"):
+                                break
+                            time.sleep(1)
                         
                         media_ids.append(uploaded['id'])
             
