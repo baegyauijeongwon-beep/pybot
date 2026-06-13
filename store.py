@@ -25,7 +25,7 @@ JSON_FILE = os.path.join(BASE_DIR, "store-bot.json")
 SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 # SINCE_ID_FILE 은 실시간 통신이므로 더 이상 필요하지 않아 삭제했습니다.
 INITIAL_MONEY = 0 
-SINCE_ID_FILE = "last_notification.txt"
+SINCE_ID_FILE = "store_last_notification.txt"
 # =======================================================
 
 print("TOKEN 존재 여부:", ACCESS_TOKEN is not None)
