@@ -220,9 +220,7 @@ def process_mention(status):
                     res = requests.get(url)
                     if res.status_code == 200:
                         import uuid
-                        filename = f"temp_{uuid.uuid4().hex}.png"
-                        with open(filename, "wb") as f:
-                            f.write(res.content)
+                        filename = f"/tmp/{uuid.uuid4().hex}.png"
 
                         uploaded = mastodon.media_post(filename, synchronous=True)
                         
