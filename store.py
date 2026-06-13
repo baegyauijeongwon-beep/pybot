@@ -218,22 +218,17 @@ def process_mention(status):
             for url in drawn_urls:
                 try:
                     res = requests.get(url)
-                    if res.status_code == 200:
-                        import uuid
-                        filename = f"/tmp/{uuid.uuid4().hex}.png"
 
-                        uploaded = mastodon.media_post(filename)
-                        
-                        # 🔥 실제 저장
-                        with open(filename, "wb") as f:
-                            f.write(res.content)
-            
-                        # 🔥 여기서 확인
-                        print("URL:", url)
-                        print("파일 생성 완료 여부:", os.path.exists(filename))
-                        print("파일 크기:", os.path.getsize(filename))
-            
-                        uploaded = mastodon.media_post(filename)
+                    content_type = res.headers.get("Content-Type", "")
+                    
+                    if "image" not in content_type:
+                        print("❌ 이미지 아님:", content_type)
+                        continue
+                    
+                    with open(filename, "wb") as f:
+                        f.write(res.content)
+                    
+                    uploaded = mastodon.media_post(filename)
 
                         media_id = uploaded["id"]
                         
