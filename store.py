@@ -80,6 +80,7 @@ def process_mention(status):
     print("process_mention 시작")
     content = clean_html(status['content'])
     acct = status['account']['acct']
+    display_name = status['account']['display_name']
     user_handle = acct if acct.startswith('@') else f"@{acct}"
     
     try:
@@ -95,7 +96,7 @@ def process_mention(status):
             empty_row_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if not row[0].strip()), -1)
             if empty_row_idx == -1: return
             user_sheet.update_cell(empty_row_idx, 1, user_handle)
-            user_sheet.update_cell(empty_row_idx, 2, acct)
+            user_sheet.update_cell(empty_row_idx, 2, display_name)
             user_sheet.update_cell(empty_row_idx, 4, INITIAL_MONEY)
             mastodon.status_post(status=f"@{acct} 상점 이용이 가능합니다.", in_reply_to_id=status['id'])
             return
