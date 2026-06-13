@@ -224,14 +224,17 @@ def process_mention(status):
                         with open(filename, "wb") as f:
                             f.write(res.content)
 
-                        uploaded = mastodon.media_post(filename, synchronous=True)
+                        uploaded = mastodon.media_post(filename)
+
+                        media_id = uploaded["id"]
                         
-                        media_ids.append(uploaded['id'])
-            
-                        os.remove(filename)
-            
-                except Exception as e:
-                    print("이미지 업로드 실패:", e)
+                        for _ in range(10):
+                            m = mastodon.media(media_id)
+                            if m.get("url"):
+                                break
+                            time.sleep(1)
+                        
+                        media_ids.append(media_id)
 
             mastodon.status_post(
                 status=f"@{acct}\n⟡ '{item_name}' {req_qty}개를 구매했습니다. ⟡\n\n[ {description} ]\n[ {result_display} ] 소지품에 들어갔습니다. \n\n[ 금액: {total_price:,} G ｜ 잔액: {current_money - total_price:,} G ]",
