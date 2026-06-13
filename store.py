@@ -224,8 +224,16 @@ def process_mention(status):
 
                         uploaded = mastodon.media_post(filename)
                         
+                        # 🔥 실제 저장
+                        with open(filename, "wb") as f:
+                            f.write(res.content)
+            
+                        # 🔥 여기서 확인
                         print("URL:", url)
-                        print("파일 존재 여부:", os.path.exists(filename))
+                        print("파일 생성 완료 여부:", os.path.exists(filename))
+                        print("파일 크기:", os.path.getsize(filename))
+            
+                        uploaded = mastodon.media_post(filename)
 
                         media_id = uploaded["id"]
                         
