@@ -230,18 +230,18 @@ def process_mention(status):
                     
                     uploaded = mastodon.media_post(filename)
 
-                        media_id = uploaded["id"]
-                        
-                        # ⛔ 이게 핵심
-                        for _ in range(20):
-                            m = mastodon.media(media_id)
-                            if m.get("url") or m.get("preview_url"):
-                                break
-                            time.sleep(1)
-                        
-                        media_ids.append(uploaded['id'])
-            
-                        os.remove(filename)
+                    media_id = uploaded["id"]
+                    
+                    # ⛔ 이게 핵심
+                    for _ in range(20):
+                        m = mastodon.media(media_id)
+                        if m.get("url") or m.get("preview_url"):
+                            break
+                        time.sleep(1)
+                    
+                    media_ids.append(uploaded['id'])
+        
+                    os.remove(filename)
             
                 except Exception as e:
                     print("이미지 업로드 실패:", e)
