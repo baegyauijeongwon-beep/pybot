@@ -287,8 +287,8 @@ def process_mention(status):
             mastodon.status_post(
                 status=(
                     f"@{acct}\n"
-                    f"저금 50 확인.\n"
-                    f"+1 갈레온 지급."
+                    f"50툿 확인 되었습니다!\n"
+                    f"+1 갈레온"
                 ),
                 in_reply_to_id=status["id"]
             )
@@ -314,8 +314,8 @@ def process_mention(status):
             mastodon.status_post(
                 status=(
                     f"@{acct}\n"
-                    f"저금 100 확인.\n"
-                    f"+2 갈레온 지급."
+                    f"100툿 확인 되었습니다!\n"
+                    f"+2 갈레온"
                 ),
                 in_reply_to_id=status["id"]
             )
