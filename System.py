@@ -214,7 +214,7 @@ def handle_wish_piece(status, acct):
         status=(
             f"@{acct}\n"
             f"소원 조각을 발견했다.🌟\n\n"
-            f"코드: {selected['code']}\n"
+            f"문장 위치: {selected['code']}\n"
             f"조각 내용: {selected['piece']}"
         ),
         in_reply_to_id=status["id"]
