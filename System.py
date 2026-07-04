@@ -164,7 +164,7 @@ def handle_wish_piece(status, acct):
     candidates = []
 
     for i, row in enumerate(piece_rows[1:], start=2):
-        code = row[0].strip() if len(row) > 0 else ""
+        code = row[1].strip() if len(row) > 0 else ""
         piece = row[2].strip() if len(row) > 2 else ""
         checked = row[3].strip().upper() if len(row) > 3 else "FALSE"
 
@@ -369,14 +369,14 @@ def process_mention(status):
             user_sheet.update_cell(
                 user_idx,
                 4,
-                current_money + 1
+                current_money + 2
             )
 
             mastodon.status_post(
                 status=(
                     f"@{acct}\n"
                     f"출석 완료.\n"
-                    f"+1 갈레온 지급."
+                    f"+2 갈레온 지급."
                 ),
                 in_reply_to_id=status["id"]
             )
