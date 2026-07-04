@@ -164,7 +164,7 @@ def handle_wish_piece(status, acct):
     candidates = []
 
     for i, row in enumerate(piece_rows[1:], start=2):
-        code = row[1].strip() if len(row) > 0 else ""
+        code = row[0].strip() if len(row) > 0 else ""
         piece = row[2].strip() if len(row) > 2 else ""
         checked = row[3].strip().upper() if len(row) > 3 else "FALSE"
 
