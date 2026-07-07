@@ -335,7 +335,7 @@ def process_mention(status):
             current_time = now.time()
 
             start_time = dt_time(
-                hour=9,
+                hour=8,
                 minute=0,
                 second=0
             )
