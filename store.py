@@ -3,6 +3,7 @@ import time
 import os
 import random
 import requests
+import traceback
 from dotenv import load_dotenv # 🌟 추가: .env 파일 읽기용
 from mastodon import Mastodon, StreamListener # 🌟 추가: StreamListener
 import gspread
@@ -291,8 +292,8 @@ if __name__ == "__main__":
 
             time.sleep(5)
 
-        except Exception as e:
+        except Exception:
 
-            print("🚨 오류:", e)
+            traceback.print_exc()
 
             time.sleep(10)
