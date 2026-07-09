@@ -80,6 +80,16 @@ def save_since_id(notification_id):
     with open(SINCE_ID_FILE, "w") as f:
         f.write(str(notification_id))
 
+def reply(status, text, media_ids=None):
+    acct = status["account"]["acct"]
+
+    mastodon.status_post(
+        status=f"@{acct} {text}",
+        in_reply_to_id=status["id"],
+        visibility=status.get("visibility", "public"),
+        media_ids=media_ids if media_ids else None
+    )
+
 def process_mention(status):
     print("process_mention 시작")
     content = clean_html(status['content'])
@@ -95,14 +105,15 @@ def process_mention(status):
         # 0. 신규 유저 등록
         if "[신입생 등록]" in content:
             if user_idx != -1:
-                mastodon.status_post(status=f"@{acct} 이미 명단에 적혀 있습니다.", in_reply_to_id=status['id'])
+                reply(status=f"@{acct} 이미 명단에 적혀 있습니다.", in_reply_to_id=status['id'])
                 return
             empty_row_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if not row[0].strip()), -1)
             if empty_row_idx == -1: return
-            user_sheet.update_cell(empty_row_idx, 1, user_handle)
-            user_sheet.update_cell(empty_row_idx, 2, display_name)
-            user_sheet.update_cell(empty_row_idx, 4, INITIAL_MONEY)
-            mastodon.status_post(status=f"@{acct} 상점 이용이 가능합니다.", in_reply_to_id=status['id'])
+            user_sheet.update(
+                f"A{empty_row_idx}:D{empty_row_idx}",
+                [[user_handle, display_name, "", INITIAL_MONEY]]
+            )
+            reply(status=f"@{acct} 상점 이용이 가능합니다.", in_reply_to_id=status['id'])
             return
 
         # 2. 양도 기능
@@ -116,13 +127,13 @@ def process_mention(status):
             # 내 인벤토리 확인
             inv_dict = parse_inventory(user_rows[user_idx-1][2])
             if inv_dict.get(item_name, 0) < trade_count:
-                mastodon.status_post(status=f"@{acct} 해당 상품을 {trade_count}개만큼 가지고 있지 않습니다.", in_reply_to_id=status['id'])
+                reply(status=f"@{acct} 해당 상품을 {trade_count}개만큼 가지고 있지 않습니다.", in_reply_to_id=status['id'])
                 return
             
             # 타겟 유저 찾기 (아이디로 찾음)
             target_idx = next((i + 2 for i, row in enumerate(user_rows[1:]) if row[0].strip().lower() == target_handle.lower()), -1)
             if target_idx == -1:
-                mastodon.status_post(status=f"@{acct} {target_handle}님은 명단에 없습니다. 다시 확인해주세요.", in_reply_to_id=status['id'])
+                reply(status=f"@{acct} {target_handle}님은 명단에 없습니다. 다시 확인해주세요.", in_reply_to_id=status['id'])
                 return
             
             # 🌟 [추가/수정] 타겟의 '이름(B열)' 가져오기 (user_rows의 인덱스는 0부터 시작하므로 target_idx-2)
@@ -137,7 +148,7 @@ def process_mention(status):
             user_sheet.update_cell(target_idx, 3, rebuild_inventory(target_inv_dict))
             
             # 🌟 툿 출력도 '이름'으로 변경!
-            mastodon.status_post(status=f"@{acct} {target_handle}\n\n{target_name}에게 [{item_name} {trade_count}개] 양도 완료", in_reply_to_id=status['id'])
+            reply(status=f"@{acct} {target_handle}\n\n{target_name}에게 [{item_name} {trade_count}개] 양도 완료", in_reply_to_id=status['id'])
             return
         # 2-2. 갈레온(재화) 양도 기능
         # 커맨드 형식: [갈레온 양도/금액/@아이디]
@@ -150,14 +161,14 @@ def process_mention(status):
             
             # ① 0 이하의 금액 양도 방지
             if transfer_amount <= 0:
-                mastodon.status_post(status=f"@{acct} 양도할 금액은 1 갈레온 이상이어야 합니다.", in_reply_to_id=status['id'])
+                reply(status=f"@{acct} 양도할 금액은 1 갈레온 이상이어야 합니다.", in_reply_to_id=status['id'])
                 return
                 
             current_money = safe_int(user_rows[user_idx-1][3])
             
             # ② 내 잔고 확인
             if current_money < transfer_amount:
-                mastodon.status_post(status=f"@{acct} 갈레온이 부족합니다. (현재 보유: [{current_money:,}] 갈레온)", in_reply_to_id=status['id'])
+                reply(status=f"@{acct} 갈레온이 부족합니다. (현재 보유: [{current_money:,}] 갈레온)", in_reply_to_id=status['id'])
                 return
                 
             # ③ 받을 사람(타겟)이 명단에 있는지 확인
@@ -174,7 +185,7 @@ def process_mention(status):
             user_sheet.update_cell(target_idx, 4, target_current_money + transfer_amount)
             
             # ⑥ 완료 영수증 툿 발송 (이름으로 출력!)
-            mastodon.status_post(
+            reply(
                 status=f"@{acct}\n{target_name}에게 [{transfer_amount:,}] 갈레온을 보냈습니다.", 
                 in_reply_to_id=status['id']
             )
@@ -243,7 +254,7 @@ def process_mention(status):
                 except Exception as e:
                     print("🚨 이미지 업로드 실패:", e)
         
-            mastodon.status_post(
+            reply(
                 status=f"@{acct}\n⟡ '{item_name}' {req_qty}개를 구매했습니다. ⟡\n\n[ {description} ]\n[ {result_display} ] 소지품에 들어갔습니다. \n\n[ 금액: {total_price:,} G ｜ 잔액: {current_money - total_price:,} G ]",
                 in_reply_to_id=status['id'], media_ids=media_ids if media_ids else None
             )
