@@ -237,6 +237,24 @@ def process_mention(status):
         else f"@{acct}"
     )
 
+        # =====================
+        # [도장/자유입력]
+        # =====================
+
+    if "[도장/" in content:
+
+        stamp_text = content.split("[도장/", 1)[1].split("]", 1)[0].strip()
+
+        mastodon.status_post(
+            status=(
+                f"@{acct}\n"
+                f"{stamp_text} 방문 완료! 도장 꾸욱🐾"
+            ),
+            in_reply_to_id=status["id"]
+        )
+
+        return
+
     try:
 
         user_sheet = get_sheet()
