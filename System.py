@@ -181,8 +181,7 @@ def handle_wish_piece(status, acct):
         mastodon.status_post(
             status=(
                 f"@{acct}\n"
-                f"마지막 조각은 대체 어디에 있는 거지?\n"
-                f"답답한 마음에 양피지를 들면 처음 보는 쪽지가 툭 떨어집니다."
+                f"더 이상 소원 조각을 찾을 수 없습니다."
             ),
             in_reply_to_id=status["id"]
         )
